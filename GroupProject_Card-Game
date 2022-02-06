@@ -1,0 +1,642 @@
+//IMPORT START
+import java.util.Scanner;            //import scanner class for taking user input
+import java.util.ArrayList;          //import arraylist class for card storage
+import java.util.Collections;        //import collections class to shuffle deck 
+import java.lang.ProcessBuilder;     //import processbuilder class for clearing the screen
+//IMPORT END
+
+class CardGame
+{
+  //START GLOBAL VARIABLES
+  public static final Scanner input = new Scanner(System.in); //global scanner variable for any form of input
+  public static ArrayList<String> Deck = makeDeck();          //will be the static deck that holds all generic cards and will not change through execution.
+  public static int[] playerWins = {0, 0, 0, 0};              //stores the wins of each of the 4 players with respect to the index of the integer array
+  public static String[] playerNames = new String[4];         //stores the names of each of the 4 players with respect to the index of the String array
+  public static String prevCard;                              //stores the previous card played in execution
+  public static boolean roundOver = false;                    //stores the boolean value of a round being over. Controls the round loop in main
+  public static boolean gameOver = false;                     //stores the boolean value of the game being over. Controls the game loop in main
+  public static int winningIndex = -1;                        //stores the index of the game winner when one is detected. Routes to a player name through playerNames array
+  public static int turnCount;                                //stores the turn count for each round to keep track of whos turn it is
+  public static boolean reverse = false;                      //stores the boolean value for reversing the turn order. Dictated by rule 4
+  //END GLOBAL VARIABLES
+
+  //MAIN METHOD BY BODE 
+  public static void main(String[] args) throws InterruptedException
+  {
+    //START LOCAL VARIABLES
+    String winner = "";       //Will hold the name of the winner when one is assigned after the game loop is broken
+    int playerNum = 0;   //Will hole the number of the index of the player based on the turn count
+    //END LOCAL VARIABLES
+
+    gameIntro(); //call to game intro method to get names and show rules
+
+    while(!gameOver) //start the game loop and test if the game over boolean is false
+    {
+      //START GAME SETUP SEQUENCE
+      winningIndex = -1;  //index of the winner of a round when a round ends if there is a winner
+      roundOver = false;  //sets the round over boolean to false each time the round starts over
+      turnCount = 1000;      //sets turn count back to 1000 after the round if over
+      reverse = false; //reset the order of turns back to the original direction
+      Deck.clear();       //clears the deck before rebuild
+      Deck = makeDeck();  //rebuilds the deck with a call to make deck
+      ArrayList<String> rDeck = shuffleDeck(Deck);  //shuffles the deck with a call to the shuffle deck method
+      ArrayList<ArrayList<String>> playerCards = new ArrayList<ArrayList<String>>(4);  //creates an arraylist with elements of a arraylist of strings for the player hands. similar to a 2D array.
+      dealCards(rDeck, playerCards); //call to deal cards method to fill the play cards arraylist
+      prevCard = rDeck.get(0); //sets previous card to the top of the round deck
+      rDeck.remove(0); //removes the card on top of the deck
+      //END GAME SETUP SEQUENCE
+
+      //START GAME LOOP
+      while(!roundOver) //round loop tests if the round over variable has been set to true
+      {
+        //CURRENT PLAYER TURN
+        playerNum = Math.abs(turnCount) % 4; //set the player number to turn count mod 4 to keep the int value inside [0, 3]
+        //absolute value prevents negative index storage due to rule 4
+
+        //PLAY THROUGH A TURN
+        playUserTurn(playerNum, rDeck, playerCards, turnCount); //call to play user turn to execute a players turn
+
+        if(playerCards.get(Math.abs(turnCount) % 4).size() == 0) //if a player runs out of cards the round ends. Absolute value prevents index out of bounds on negative turn count
+        {
+          winningIndex = playerNum; //set the winning index to the player num
+          break; //break the round loop
+        }
+
+        //END CURRENT TURN
+        if(!reverse){turnCount++;} //if rule4 shows reverse to be false then increment turn count 
+        else{turnCount--;}         //otherwise decrement turncount
+        clearScreen();
+      }
+      if(winningIndex != -1) //if the winning index is set. meaning there is no tie. then a winner is picked
+      {
+        System.out.println("The Round Winner is " + getPlayer(winningIndex)); //print the round winners name
+        playerWins[winningIndex]++; //increment that players wins using the winning index
+        System.out.print("Press enter to continue..."); //print the prompt to move on
+        input.nextLine(); //wait for input to move on
+        clearScreen(); //clear the screen for further execution
+      }
+      testWinner(playerWins);  //test if a player has 3 round wins as specified by rule 2
+      clearHand(playerCards, rDeck); //clear the all the player hands at the end of each round
+    }
+
+    switch (winningIndex) //switch statement to set the winners name based on the winning index
+    {
+      case 0: //on index 0 get the first player
+        winner = getPlayer(0);
+        break;
+      case 1: //on index 1 get the second player
+        winner = getPlayer(1);
+        break;
+      case 2: //on index 2 get the third player
+        winner = getPlayer(2);
+        break;
+      case 3: //on index 3 get the fourth player
+        winner = getPlayer(3);
+        break;
+    }
+
+    System.out.println("Congratulations to: " + winner + "\nYou have won Watered Down Uno.\nWe hope you enjoyed the game.");
+  } //end main
+
+  //TEST WINNER BY MAX
+  public static void testWinner(int[] playerWins) //test if there is a player with 3 wins as specified by rule 2
+  {
+    for(int i = 0; i < playerWins.length; i++) //loop through each index for each player
+    {
+      if(playerWins[i] == 3) //if a player has 3 wins then there is a game winner
+      {
+        winningIndex = i; //set the winning index to i
+        gameOver = true;  //set gameover to true
+      }
+    }
+  }
+
+  //========================================//
+  //++++++++++++Fake Cards Class++++++++++++//
+  //========================================//
+
+  //MAKE DECK BY BODE
+  public static ArrayList<String> makeDeck() //method used to make the deck of cards as 2 character strings
+  {
+    ArrayList<String> rtrn = new ArrayList<String>(); //make a new arraylist to be returned
+
+    String[] Suits = {"S", "H", "C", "D"}; //define the options of suits
+    String[] Cards = {"A", "2", "3", "4", "5", "6", "7", "8", "9", "T", "J", "Q", "K"}; //define the options of card values
+
+    for(int i = 0; i < Cards.length; i++) //loop through card values
+    {
+      for(int j = 0; j < Suits.length; j++) //loop through suit values
+      {
+        rtrn.add(Cards[i] + Suits[j]); //add the combination of the card value and the suit to the arraylist
+      }
+    }
+
+    return rtrn; //return arraylist
+  }
+
+  //SHUFFLE DECK BY GRANT
+  public static ArrayList<String> shuffleDeck(ArrayList<String> oDeck) //will shuffle the cards provided as a parameter and return them
+  {
+    Collections.shuffle(oDeck); //shuffle using collections
+    return oDeck; //return the arraylist
+  }
+
+  //DEAL CARDS BY BODE AND JOSH
+  public static void dealCards(ArrayList<String> deck, ArrayList<ArrayList<String>> playerCards) //method will deal cards to each player hands
+  {
+    ArrayList<String> p1 = new ArrayList<String>(); //create an arraylist for player1s cards
+    ArrayList<String> p2 = new ArrayList<String>(); //create an arraylist for player2s cards
+    ArrayList<String> p3 = new ArrayList<String>(); //create an arraylist for player3s cards
+    ArrayList<String> p4 = new ArrayList<String>(); //create an arraylist for player4s cards
+
+    for(int i = 0; i < 4; i++)
+    {
+      for(int j = 0; j < 7; j++)
+      {
+        switch (i)  //switch based on the currect player [0-3]
+        {
+          case 0: p1.add(deck.get(0)); break; //add top to player 1 on case 0
+          case 1: p2.add(deck.get(0)); break; //add top to player 2 on case 1
+          case 2: p3.add(deck.get(0)); break; //add top to player 3 on case 2
+          case 3: p4.add(deck.get(0)); break; //add top to player 4 on case 3
+        }
+        deck.remove(0); //remove the top card just dealt to a player
+      }
+    }
+
+    playerCards.add(p1); //add player 1 arraylist to playerCards arraylist
+    playerCards.add(p2); //add player 2 arraylist to playerCards arraylist
+    playerCards.add(p3); //add player 3 arraylist to playerCards arraylist
+    playerCards.add(p4); //add player 4 arraylist to playerCards arraylist
+  }
+
+  //CLEAR HAND BY JOSH
+  public static void clearHand(ArrayList<ArrayList<String>> playerCards, ArrayList<String> rDeck) //method to clear the player cards and rdeck arraylists
+  {
+    playerCards.clear(); //clear contents of playercards
+    rDeck.clear();       //clear contents of rDeck
+  }
+
+  //========================================//
+  //++++++++++++Fake Games Class++++++++++++//
+  //========================================//
+
+  //SHOW RULES BY MAX
+  public static void showRules() throws InterruptedException//method to print the rules to the screen and pause before moving on
+  {
+    /*
+    The objective of the game is to be the first player to run out of cards. The First person to win three hands wins the game.
+
+    Rule 1: You can only play the same card number or card suit as the top card on the discard pile.
+
+    Rule 2: Once one player wins 3 hands, then the entire game ends.
+
+    Rule 3: If a player plays a 7, the person that was supposed to go next has to draw a card.
+
+    Rule 4: If a player plays an Ace, then the order of the players reverses.
+
+    Rule 5: If a player places down a King, they can play another card on top of it that has the same value or suit. If it’s another king, they cannot add another card on top of it.
+
+    Rule 6: If a player is on their last card, they must click the Uno button on the screen. If a player hits the button too early or doesn’t press it when they are on their last card, they must draw 1 card.
+
+    Rule 7: If a player places a Jack, then the next person who was supposed to go gets skipped.
+
+    Rule 8: When a player wins a hand that is not the 3rd, then on the next round they must go first.
+    */
+
+    //print all the rules to the console
+    System.out.println("The objective of the game is to be the first player to run out of cards. The first person to win three hands wins the game.\n");
+    System.out.println("Rule 1: You can only play the same card number or card suit as the top card on the discard pile.\n");
+    System.out.println("Rule 2: Once one player wins 3 hands, then the entire game ends.\n");
+    System.out.println("Rule 3: If a player plays a 7, the person that was supposed to go next has to draw a card.\n");
+    System.out.println("Rule 4: If a player plays an Ace, then the order of the players reverses.\n");
+    System.out.println("Rule 5: If all cards are drawn, the round ends without a winner.\n");
+    System.out.println("Rule 6: If a player is on their last card, they must click the Uno button on the screen. If a player hits the button too early or doesn’t press it when they are on their last card, they must draw 1 card.\n");
+    System.out.println("Rule 7: If a player places a Jack, then the next person who was supposed to go gets skipped.\n");
+    System.out.println("Rule 8: When a player wins a hand that is not the 3rd, then on the next round they must go first.\n");
+
+    //pause prompt
+    System.out.print("Press enter to continue.");
+    input.nextLine(); //wait for user input to move on
+
+    clearScreen(); //clear the screen with a call to the clear screen method
+  }
+
+  //GAME INTRODUCTION BY BODE
+  public static void gameIntro() throws InterruptedException//method to introduce player to the game.
+  {
+    System.out.println("Welcome to Watered Down UNO!"); //print title
+    System.out.println("By: Bode Raymond, Grant McIntosh, Maxwell Foox, Joshua John\n"); //print authors
+
+    //SHOW RULES OPTION
+    System.out.print("Would you like to show the rules? (Y/n): "); //prompt user to show rules
+    String selection = input.nextLine();
+    
+    if(selection.equals("y") || selection.equals("Y")){showRules();} //if the user selects yes then show rules will be displayed
+    else{clearScreen();} //any other input will clear the screen and move on
+
+    //CUSTOM PLAYER NAMES OPTION
+    System.out.print("Would you like to set custom player names? (Y/n): "); //prompt user to set custom player names
+    selection = input.nextLine();
+
+    //SET CUSTOM PLAYER NAMES
+    if(selection.equals("y") || selection.equals("Y")) //if the user selects yes then custom names will be set
+    {
+      System.out.println(); //print extra line for formatting
+
+      for(int i = 0; i < playerNames.length; i++) //loops through the 4 players in playerNames by the index i
+      {
+        int playerNum = i + 1; //player num increment to move displayed range from [0-3] to [1-4]
+        System.out.print("Input player " + playerNum + "\'s name: "); //print the name prompt
+        playerNames[i] = input.nextLine(); //put user input into the player names array at index i
+      }
+      System.out.print("Press enter to continue."); //wait for user input before continuing
+      input.nextLine();
+    }
+    else //if no custom names assign defaults
+    {
+      playerNames[0] = "Player 1"; //default name assignment
+      playerNames[1] = "Player 2"; //default name assignment
+      playerNames[2] = "Player 3"; //default name assignment
+      playerNames[3] = "Player 4"; //default name assignment
+    }
+
+    clearScreen(); //clear screen at end of set up
+  }
+
+  //SHOW PREVIOUS BY GRANT
+  public static void showPrev() //method shows previous card played on console when called
+  {
+    System.out.println("Previous: " + prevCard + "\n");
+  }
+
+  //PLAY USER TURN BY BODE JOSH GRANT MAX
+  public static void playUserTurn(int playerNum, ArrayList<String> rDeck, ArrayList<ArrayList<String>> playerCards, int turnCount) throws InterruptedException
+  {
+    String userInput; //variable to store userinput on selection
+    int selection;    //used to store the numerical selection of user input when valid input is detected
+
+    while(true) //infinite loop, broken on end turn condition
+    {
+      if(r5_check(rDeck)) //test for rule 5. (cards remaining in deck)
+      {
+        roundOver = true; //set round over to true
+        System.out.println("There are no cards remaining the in deck. The round is a draw.\n");  //print tell users there is a draw 
+        System.out.println("Rule 5: If all cards are drawn, the round ends without a winner.\n"); //print the rule associated with this behavior
+        System.out.println("Press enter to continue."); //wait for user input to continue
+        userInput = input.nextLine(); 
+        clearScreen(); //clear the screen
+
+        break; //break while loop to end turn
+      }
+
+      System.out.println(getPlayer(playerNum) + "\'s turn:\n"); //print the user name for turn
+      Thread.sleep(1000); //wait 1 second
+      System.out.println("Enter 0 to draw card"); //print information on how to draw card
+
+      showCards(playerNum, playerCards); //call to show cards for the given player
+      showPrev(); //print the previous card
+
+      System.out.print("Choose a card you would like to play (pick a number): "); //prompt user for a cart selection
+      userInput = input.nextLine(); //assign user input
+      
+      if(userInput.matches(".*[^0-9].*") || userInput.matches("")) //if user input is non numerical or empty than input is invalid
+      {
+        clearScreen(); //clear the screen
+        System.out.println("Invalid input. Try Again."); //print invalid
+        Thread.sleep(2000); //wait 2 seconds 
+        clearScreen(); //clear screen again
+        continue; //start turn over
+      }
+      
+      selection = Integer.parseInt(new String(userInput)); //if input is corectly formated the selection is set to an integer of the user input
+
+      if(selection < 0 || selection > playerCards.get(playerNum).size()) //if the selection is in range the turn will continue
+      {
+        clearScreen(); //clear for formatting
+        System.out.println("That card can not be played. Pick again:"); //tell user that that input is invalid
+        Thread.sleep(2000); //sleep so user can read
+        continue; //start turn over
+      }
+
+      if(selection == 0) //if selection is 0 then draw command was issued
+      {
+        playerCards.get(playerNum).add(rDeck.get(0)); //add that top card from rdeck to the current players hand
+        rDeck.remove(0); //remove the top card from rdeck
+        clearScreen(); //clear screen for formatting
+        break; //end turn
+      }
+
+      String card = playerCards.get(playerNum).get(selection - 1); //set the selected to card to the index of the selection - 1 to start at 0
+
+      if(r1_check(card, prevCard)) //if r1 check passes then the turn continues
+      {
+        r3_check(card, prevCard, playerNum, rDeck, playerCards); //check if r3 applies on this play
+        r7_check(card); //check if r7 applies on this play
+        r4_check(card); //check of r4 applies on this play
+        prevCard = card; //set the previous card to the card played by the user 
+        playerCards.get(playerNum).remove(selection - 1);//remove that card from the users hand
+        clearScreen(); //clear screen for formatting
+        r6_check(playerCards, rDeck, playerNum); //check if r6 applies after turn is over
+        
+        break; //end turn
+      }
+      else //if r1 is not passed then restart turn
+      {
+        clearScreen(); //clear the screen for formatting
+        System.out.println("That card Can not be played. Pick again:"); //notify user that card is invalid
+        Thread.sleep(2000); //wait 2 seconds 
+        clearScreen(); //clear the screen for formatting
+      }
+    }
+  }
+
+  //RULE 1 CHECK BY MAX
+  public static boolean r1_check(String card, String prevCard) //check if rule 1 applies
+  {
+    if(card.substring(0, 1).equals(prevCard.substring(0, 1)) || //if the number of the selected card is equal to the number of the previous card 
+       card.substring(1, 2).equals(prevCard.substring(1, 2)))   //or the suit of the selected card is equal to the suit of the previous card
+    {
+      return true; //return a passing test 
+    }
+    
+    return false; //return failed test
+  }
+
+  //RULE 3 CHECK BY JOSH
+  //check for rule 3 will test if number played is 7
+  public static void r3_check(String card, String prevCard, int playerNum, ArrayList<String> rDeck, ArrayList<ArrayList<String>> playerCards) throws InterruptedException
+  {
+    if(card.substring(0,1).equals("7")) //if the numeber is seven then execute rule 7
+    {
+      //add card to next player based on the status of reverse
+      if(reverse){playerCards.get((playerNum - 1) % 4).add(rDeck.get(0));}
+      else{playerCards.get((playerNum + 1) % 4).add(rDeck.get(0));}
+      rDeck.remove(0); //remove that card from rdeck
+      clearScreen(); //clear the screen for formatting
+      System.out.println("Because you played a 7, the next person was given a card and they are now skipped."); //tell user that the rule is being implemented 
+      Thread.sleep(3000); //wait three seconds before continuing
+      clearScreen(); //clear the screen
+      if(reverse) //if reverse is set to true (r4) then subtract one from turncount to skip next
+      {
+        turnCount--;
+      }
+      else //if not reverse add 1 to turn count to skip next
+      {
+        turnCount++;
+      }
+    }
+  }
+  
+  //RULE 6 CHECK BY MAX AND GRANT
+  //check for r6 when the player has one card remaining
+  public static void r6_check(ArrayList<ArrayList<String>> playerCards, ArrayList<String> rDeck, int playerNum) throws InterruptedException
+  {
+    if(playerCards.get(playerNum).size() == 1){ //if there is one card left, rule 6 is triggered
+      System.out.println("Do you have anything to say?"); //ask for user input with newline
+      System.out.print("> "); //prompt for user input
+      String uno_p = input.nextLine(); //take user input as sting
+      System.out.println();//println for formatting
+
+      if(uno_p.equals("Uno") || uno_p.equals("uno")) //if the user inputted the correct string then output correct
+      {
+        System.out.println("Correct answer.");
+      }
+      else{ //otherwise the player takes a card
+        System.out.println("That's incorrect, you have been given a card."); //tell user incorrect input
+        playerCards.get(playerNum).add(rDeck.get(0)); //add card to current player
+        rDeck.remove(0); //remove card from rdeck
+      }
+      System.out.println("This was in reference to rule 6 that states if you have 1 card in your hand, you must type in Uno and if you do not, you are given a card."); //tell user what rule it was
+      Thread.sleep(5000); //wait 5 seconds so it can be read
+      clearScreen(); //clear screen for formatting
+    }
+  } 
+
+  //RULE 5 CHECK BY GRANT
+  //chek if r5 is true
+  public static boolean r5_check(ArrayList<String> rDeck)  
+  {
+    if (rDeck.size() == 0) //if the deck runs out of cards the round ends
+    {
+      return true;
+    }
+    return false;
+  }
+
+  //RULE 7 CHECK BY JOSH
+  //checks for r7 if a J has been played
+  public static void r7_check(String card) throws InterruptedException
+  {
+    if (card.substring(0, 1).equals("J")){ //if a J was played
+      clearScreen(); //clear screen for formatting 
+      System.out.println("A Jack has been played. the next player will be skipped.(Rule 7)"); //tell user the rule triggered
+      if(reverse) //if reverse is true the turn count decrements to skip next player
+      {
+        turnCount--;
+      }
+      else //otherwise the the count is incremented to skip user 
+      {
+        turnCount++; 
+      }
+      Thread.sleep(2000); //wait 2 seconds
+    }
+  }
+
+  //RULE 4 CHECK BY BODE
+  //check if r4 applies a A played
+  public static void r4_check(String card) throws InterruptedException
+  {
+    if(card.substring(0, 1).equals("A")) //if the card played is an ace
+    {
+      clearScreen(); //clear screen for formatting
+      System.out.println("An Ace has been played. The order will be reversed.(Rule 4)"); //print the rule triggered
+      if(reverse) //if reverse is true set to false
+      {
+        reverse = false;
+      }
+      else //otherwise set true
+      {
+        reverse = true;
+      }
+      Thread.sleep(4000);//sleep 4 seconds
+    }
+  }
+
+  //========================================//
+  //++++++++++++Fake Player Class+++++++++++//
+  //========================================//
+
+  //GET PLAYER BY MAX
+  public static String getPlayer(int turn) //gets player based on the turn
+  {
+    turn = turn % 4; //turn is set to the mod 4 of turn [0,3]
+    return playerNames[turn]; //returns the playername of the turn value
+  }
+
+  //SHOW CARDS BY JOSH
+  public static void showCards(int playerNum, ArrayList<ArrayList<String>> playerCards)
+  {
+    System.out.println("Cards:"); //print the section identifier
+    for(int i = 0; i < playerCards.get(playerNum).size(); i++) //for the size of the arraylist for the provided player hand
+    {
+      System.out.print(playerCards.get(playerNum).get(i) + " "); //print each card plus a space
+    }
+    System.out.println(); //print a newline for next part
+    
+    for(int i = 0; i < playerCards.get(playerNum).size(); i++) //same for loop
+    {
+      System.out.print(i + 1 + "  "); //print the index of each card plus 1 for formatting
+    }
+    System.out.println("\n");//print 2 new lines
+  }
+
+  //========================================//
+  //+++++++++++Fake Utilities Class+++++++++//
+  //========================================//
+
+  //CLEAR SCREEN BY BODE WITH HELP OF PROF LIGHTFOOT'S LECTURE
+  public static void clearScreen() throws InterruptedException//clear screen method. much useful
+  {
+    try //start try block
+    {
+      String operatingSystem = System.getProperty("os.name"); //get the OS name information
+
+      if(operatingSystem.contains("Windows")) //if the host is windows 
+      {        
+        ProcessBuilder pb = new ProcessBuilder("cmd", "/c", "cls"); //build a process to clear the terminal using cls
+        Process startProcess = pb.inheritIO().start(); //start process
+        startProcess.waitFor(); //wait for process to complete
+      }
+      else //if anything other than windows
+      {
+        ProcessBuilder pb = new ProcessBuilder("clear"); //build a process with clear command 
+        Process startProcess = pb.inheritIO().start(); //start process
+        startProcess.waitFor(); //wait for process to complete
+      } 
+    } //end try block start catch
+    catch(Exception e)
+    {
+      System.out.println(e); //print error InterruptedException if thrown
+    }
+  }
+
+  //========================================//
+  //+++++++++++Fake Debugging Class+++++++++//
+  //========================================//
+
+  //ALL DEBUGGER METHODS BUILT BY BODE AS NEEDED FOR TESTING
+  public static void printPlayerCards(ArrayList<ArrayList<String>> playerCards, String[] names) //print the cards of all the players (DEBUG ONLY)
+  {
+    for(int i = 0; i < playerCards.size(); i++) //for all players
+    {
+      System.out.print(names[i] + "\t"); //print the name of the player
+      for(int j = 0; j < playerCards.get(i).size(); j++) //for all cards in player hand
+      {
+        System.out.print(playerCards.get(i).get(j) + " "); //print card plus space 
+      }
+      System.out.println(); //print next line
+    }
+  }
+
+  //ALL DEBUGGER METHODS BUILT BY BODE AS NEEDED FOR TESTING
+  public static void printDeck(ArrayList<String> Deck) //print all cards in deck (DEBUG ONLY)
+  {
+    for(int i = 0; i < Deck.size(); i++) //for every index of deck
+    {
+      System.out.println(Deck.get(i)); //print card at index
+    }
+  }
+
+  //ALL DEBUGGER METHODS BUILT BY BODE AS NEEDED FOR TESTING
+  public static void printPlayerNames(String[] names) //print all player names (DEBUG ONLY)
+  {
+    for(int i = 0; i < names.length; i++) //for all users
+    {
+      System.out.println(names[i]); //print user name
+    }
+  }
+}
+
+
+/*
+|+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++|
+| ALL BELOW CODE IS THE STAGING AREA WE USED WHEN BRAINSTOMING IDEAS FOR HOW TO PROGRAM RULES |
+| BELOW THIS LINE HAS NO EFFECT ON THE CODE OTHER THAN CAUSING ERRORS WHEN UN COMMENTED       |
+|+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++|
+*/
+
+
+/*
+Rule 1: You can only play the same card number or card suit as the top card on the discard pile.
+
+if((cardPlayedSuit == pileCardSuit)||(cardPlayedNumber == pileCardNumber)){
+  pileCard = playedCard;
+}
+
+else{
+  String error = "That card cannot be played";
+  JOptionPane.showConfirmDialog(null, error);
+}
+
+Rule 2: Once one player wins 3 hands, then the entire game ends.
+if (playerWins == 3){
+  String endGame = winner + " won!";
+  String play = "Would you like to play again?";
+  JOptionPane.showConfirmDialog(null, play, endGame, JOptionPane.YES_NO_OPTION);
+}
+
+Rule 3: If a player plays a 7, the person that was supposed to go next has to draw a card.
+if(card.substring(0,1).equals("7")){
+      playerCards.get((playerNum + 1) % 4).add(rDeck.get(0));
+      rDeck.remove(0);
+    }
+    System.out.println("Because you played a 7, the next person was given a card and they are now skipped.")
+    Thread.sleep(1000);
+    turnCount++;    
+
+//maybe Rule 4: If a player plays an Ace, then the order of the players reverses.
+if(card.substring(0,1).equals("A")){
+  
+}
+
+Rule 5: If all cards are drawn, the round ends without a winner. 
+
+public static boolean r5Check(){
+  if (rDeck.size() == 0){
+    return true;
+  }
+}
+
+Rule 6: If a player is on their last card, they must type in Uno on the screen. If a player doesn't type in Uno, they are given 1 card.
+if(playerCards.get(playerNum).size() == 1){
+      System.out.println("Do you have anything to say?")
+      String uno_p = input.nextLine();
+
+      if(uno_p == "Uno" || uno_p = "uno")
+      {
+        System.out.println("Correct answer.");
+      }
+      else{
+        System.out.println("That's incorrect, you have been given a card.")
+        playerCards.get(playerNum).add(rDeck.get(0));
+        rDeck.remove(0);
+      }
+    }
+    System.out.println("This was in reference to rule 6 that states if you have 1 card in your hand, you must type in Uno and if you do not, you are given a card.")
+    Thread.sleep(1000);
+
+Rule 7: If a player places a Jack, then the next person who was supposed to go gets skipped.
+public static boolean r7Check(String prevCard){
+  if (prevCard.contains(J)){
+    System.out.println("The next player is skipped.");
+    Thread.sleep(4000);
+    return true;
+  }
+  return false;
+}
+
+Rule 8: When a player wins a hand that is not the 3rd, then on the next round they must go first.
+
+
+*/
